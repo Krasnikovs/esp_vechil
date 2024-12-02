@@ -28,10 +28,8 @@ class visualizeCam():
 
 
 def main():
-	visualizeLocation()
-
-
-
+	vis = visualizeLocation()
+	vis.location()
 
 if __name__ == "__main__":
 	main()

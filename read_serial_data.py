@@ -22,7 +22,7 @@ class ReadSerial():
     
     def read_serial(self):
         try: 
-            with serial.Serial('/dev/ttyACM1', 115200, timeout = 1) as ser:
+            with serial.Serial(self.serial_port, 115200, timeout = 1) as ser:
                 read_ser = ser.readline()
                 print(read_ser)
                 return read_ser

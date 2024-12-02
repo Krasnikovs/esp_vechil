@@ -7,9 +7,7 @@ class MPU {
     private:
         MPU6050 mpu;
 
-        #define MPU_SDA 9;
-        #define MPU_SCL 10;
-
+        
         #define EARTH_GRAVITY_MS2 9.80665  //m/s2
         #define DEG_TO_RAD        0.017453292519943295769236907684886
         #define RAD_TO_DEG        57.295779513082320876798154814105
