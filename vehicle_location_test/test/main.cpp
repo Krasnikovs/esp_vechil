@@ -42,12 +42,15 @@ void setup() {
 		delay(10);
 	}
 
+	mpu_connect:
+
 	Serial.println(F("Initializing I2C devices..."));
 	mpu.initialize();
 	Serial.println(F("Testing MPU6050 connection..."));
 	if(mpu.testConnection() == false){
 		Serial.println("MPU6050 connection failed");
-		while(true);
+		goto mpu_connect;
+		// while(true);
 	}
 	else {
 		Serial.println("MPU6050 connection successful");
@@ -95,7 +98,7 @@ void setup() {
 }
 
 void loop() {
-	if (!DMPReady) return;
+	// if (!DMPReady) return;
 
 	/* Read a packet from FIFO */
 	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
@@ -123,27 +126,35 @@ void loop() {
 	Serial.print("\t");
 	Serial.println(aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
 
-	/* Display initial world-frame acceleration, adjusted to remove gravity
-	and rotated based on known orientation from Quaternion */
-	mpu.dmpGetGyro(&gg, FIFOBuffer);
-	mpu.dmpConvertToWorldFrame(&ggWorld, &gg, &q);
-	Serial.print("ggWorld\t");
-	Serial.print(ggWorld.x * mpu.get_gyro_resolution() * DEG_TO_RAD);
+	Serial.print("aworld\t");
+	Serial.print(aaWorld.x * mpu.get_acce_resolution());
 	Serial.print("\t");
-	Serial.print(ggWorld.y * mpu.get_gyro_resolution() * DEG_TO_RAD);
+	Serial.print(aaWorld.y * mpu.get_acce_resolution());
 	Serial.print("\t");
-	Serial.println(ggWorld.z * mpu.get_gyro_resolution() * DEG_TO_RAD);
+	Serial.println(aaWorld.z * mpu.get_acce_resolution() );
 
-	/* Display Euler angles in degrees */
-	mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-	Serial.print("ypr\t");
-	Serial.print(ypr[0] * RAD_TO_DEG);
-	Serial.print("\t");
-	Serial.print(ypr[1] * RAD_TO_DEG);
-	Serial.print("\t");
-	Serial.println(ypr[2] * RAD_TO_DEG);
+
+	// /* Display initial world-frame acceleration, adjusted to remove gravity
+	// and rotated based on known orientation from Quaternion */
+	// mpu.dmpGetGyro(&gg, FIFOBuffer);
+	// mpu.dmpConvertToWorldFrame(&ggWorld, &gg, &q);
+	// Serial.print("ggWorld\t");
+	// Serial.print(ggWorld.x * mpu.get_gyro_resolution() * DEG_TO_RAD);
+	// Serial.print("\t");
+	// Serial.print(ggWorld.y * mpu.get_gyro_resolution() * DEG_TO_RAD);
+	// Serial.print("\t");
+	// Serial.println(ggWorld.z * mpu.get_gyro_resolution() * DEG_TO_RAD);
+
+	// /* Display Euler angles in degrees */
+	// mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+	// Serial.print("ypr\t");
+	// Serial.print(ypr[0] * RAD_TO_DEG);
+	// Serial.print("\t");
+	// Serial.print(ypr[1] * RAD_TO_DEG);
+	// Serial.print("\t");
+	// Serial.println(ypr[2] * RAD_TO_DEG);
 
 	Serial.println();
-	delay(2900);
+	delay(1000);
   }
 }
