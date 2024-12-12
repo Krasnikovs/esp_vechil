@@ -1,17 +1,52 @@
 #include <Arduino.h>
 
-#include "I2Cdev.h"
-#include "MPU6050_6Axis_MotionApps20.h"
+#include <esp_now.h>
+#include <WiFi.h>
+
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+
+#define MPU_SDA 5
+#define MPU_SCL 4
+
+Adafruit_MPU6050 mpu;
+
+// REPLACE WITH YOUR RECEIVER MAC Address
+// f0:f5:bd:c9:66:50
+// f0:f5:bd:c9:59:b0
+uint8_t broadcastAddress[] = {0xf0, 0xf5, 0xbd, 0xc9, 0x59, 0xb0};
+// uint8_t broadcastAddress[] = {0xf0, 0xf5, 0xbd, 0xc9, 0x66, 0x50};
 
 // #include "MPU.cpp"
 // #define Pin_8 8
 
-#define MPU_SDA 9
-#define MPU_SCL 10
+typedef struct struct_message {
+  char a[32];
+  int b;
+  float c;
+  float aX;
+  float aY;
+  float aZ;
+  bool d;
+} struct_message;
 
-MPU6050 mpu;
+struct_message mpuData;
 
+esp_now_peer_info_t peerInfo;
 
+// callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+#define pinin1 9
+#define pinin2 10
+
+#define pintrig 2
+#define pinecho 3
         
 #define EARTH_GRAVITY_MS2 9.80665  //m/s2
 #define DEG_TO_RAD        0.017453292519943295769236907684886
@@ -23,21 +58,23 @@ uint8_t devStatus;      // Return status after each device operation (0 = succes
 uint16_t packetSize;    // Expected DMP packet size (default is 42 bytes)
 uint8_t FIFOBuffer[64]; // FIFO storage buffer
 
-Quaternion q;           // [w, x, y, z]         Quaternion container
-VectorInt16 aa;         // [x, y, z]            Accel sensor measurements
-VectorInt16 gg;         // [x, y, z]            Gyro sensor measurements
-VectorInt16 aaWorld;    // [x, y, z]            World-frame accel sensor measurements
-VectorInt16 ggWorld;    // [x, y, z]            World-frame gyro sensor measurements
-VectorFloat gravity;    // [x, y, z]            Gravity vector
-float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];
+// Quaternion q;           // [w, x, y, z]         Quaternion container
+// VectorInt16 aa;         // [x, y, z]            Accel sensor measurements
+// VectorInt16 gg;         // [x, y, z]            Gyro sensor measurements
+// VectorInt16 aaWorld;    // [x, y, z]            World-frame accel sensor measurements
+// VectorInt16 ggWorld;    // [x, y, z]            World-frame gyro sensor measurements
+// VectorFloat gravity;    // [x, y, z]            Gravity vector
+// float euler[3];         // [psi, theta, phi]    Euler angle container
+// float ypr[3];
 
 int Power_pin = 3;
 float xa, ya, za;
 float x = 0, y = 0, z = 0; 
 float xq, yq, zq, wq;
 float qx = 0, qy = 0, qz = 0, qw = 0;
-// MPU mpu6050;
+// // MPU mpu6050;
+long duration;
+int distance;
 
 void FW(int pin);
 void BW(int pin);
@@ -58,9 +95,15 @@ void setup() {
 	Serial.begin(115200);
 
 	Wire.begin(MPU_SDA, MPU_SCL, 400000U);
-	Wire.setClock(400000);
+	// Wire.setClock(400000);
 	
-	pinMode(Power_pin, OUTPUT);
+	// pinMode(Power_pin, OUTPUT);
+
+	pinMode(pinin1, OUTPUT);
+	pinMode(pinin2, OUTPUT);
+
+	pinMode(pintrig, OUTPUT);
+	pinMode(pinecho, INPUT); 
 
 	
 
@@ -69,35 +112,48 @@ void setup() {
 	}
 
 	mpuConnect();
+	Serial.println("Ready.");
 }
 
 void loop() {
-	// printQuaternion();
-	// printAccel();
-	getQuaternion(wq, xq, yq, zq);
-	getAccel(xa, ya, za);
+	
+	printAccel();
+	printQuaternion();
+	// getQuaternion(wq, xq, yq, zq);
+	// getAccel(xa, ya, za);
 
-	x += xa;
-	y += ya;
+	// x += xa;
+	// y += ya;
 
-	qw += wq;
-	qx += xq;
-	qy += yq;
-	qz += zq;
+	// qw += wq;
+	// qx += xq;
+	// qy += yq;
+	// qz += zq;
 
-	Serial.println(y);
+	// Serial.println(x);
 
-	if (x >= 120) {
-		for (int i = 0; i < 3; i++) {
-			FLeft(Power_pin);
-		}
-		x = 0;
-		y = 0;
-	} else {
-		for (int i = 0; i < 1; i++) {
-			FW(Power_pin);
-		}
-	}
+	
+	Serial.println("Run");
+	digitalWrite(pinin1, LOW);
+	digitalWrite(pinin2, HIGH);
+
+	digitalWrite(pintrig, LOW);
+	duration = pulseIn(pinecho, HIGH);
+	distance = duration * 0.034 / 2;
+	Serial.print("Distance: ");
+	Serial.println(distance);
+
+	// if (x >= 120) {
+	// 	for (int i = 0; i < 3; i++) {
+	// 		FLeft(Power_pin);
+	// 	}
+	// 	x = 0;
+	// 	y = 0;
+	// } else {
+	// 	for (int i = 0; i < 1; i++) {
+	// 		FW(Power_pin);
+	// 	}
+	// }
 
 	
 	
@@ -116,99 +172,154 @@ void loop() {
 	// 	delayMicroseconds(500);
 	// }
 
-	// delay(2000);
+	delay(2000);
 }
 
 void mpuConnect() {
 
-	mpu_connect:
+	mpustart:
+	// Try to initialize!
+	if (!mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire)) {
+		Serial.println("Failed to find MPU6050 chip");
+		goto mpustart;
+	// while (1) {
+	//   Serial.println("Failed to find MPU6050 chip tt");
+	//   delay(100);
+	// }
+	}
+	Serial.println("MPU6050 Found!");
 
-	mpu.initialize();
-	Serial.println("Testing MPU6050 connection...");
-	if (mpu.testConnection() == false) {
-		Serial.println("MPU6050 connection failed");
-		goto mpu_connect;
-	} else {
-		Serial.println("Connection successful");
+	mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+	Serial.print("Accelerometer range set to: ");
+	switch (mpu.getAccelerometerRange()) {
+		case MPU6050_RANGE_2_G:
+			Serial.println("+-2G");
+			break;
+		case MPU6050_RANGE_4_G:
+			Serial.println("+-4G");
+			break;
+		case MPU6050_RANGE_8_G:
+			Serial.println("+-8G");
+			break;
+		case MPU6050_RANGE_16_G:
+			Serial.println("+-16G");
+			break;
+	}
+	mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+	Serial.print("Gyro range set to: ");
+	switch (mpu.getGyroRange()) {
+		case MPU6050_RANGE_250_DEG:
+			Serial.println("+- 250 deg/s");
+			break;
+		case MPU6050_RANGE_500_DEG:
+			Serial.println("+- 500 deg/s");
+			break;
+		case MPU6050_RANGE_1000_DEG:
+			Serial.println("+- 1000 deg/s");
+			break;
+		case MPU6050_RANGE_2000_DEG:
+			Serial.println("+- 2000 deg/s");
+			break;
 	}
 
-	Serial.println(F("Initializing DMP..."));
-	devStatus = mpu.dmpInitialize();
+	mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+	Serial.print("Filter bandwidth set to: ");
+	switch (mpu.getFilterBandwidth()) {
+		case MPU6050_BAND_260_HZ:
+			Serial.println("260 Hz");
+			break;
+		case MPU6050_BAND_184_HZ:
+			Serial.println("184 Hz");
+			break;
+		case MPU6050_BAND_94_HZ:
+			Serial.println("94 Hz");
+			break;
+		case MPU6050_BAND_44_HZ:
+			Serial.println("44 Hz");
+			break;
+		case MPU6050_BAND_21_HZ:
+			Serial.println("21 Hz");
+			break;
+		case MPU6050_BAND_10_HZ:
+			Serial.println("10 Hz");
+			break;
+		case MPU6050_BAND_5_HZ:
+			Serial.println("5 Hz");
+			break;
+	}
 
-	mpu.setXGyroOffset(0);
-	mpu.setYGyroOffset(0);
-	mpu.setZGyroOffset(0);
-	mpu.setXAccelOffset(0);
-	mpu.setYAccelOffset(0);
-	mpu.setZAccelOffset(0);
+	Serial.println("");
+	delay(100);
 
-	if (devStatus == 0) {
-		mpu.CalibrateAccel(6);  // Calibration Time: generate offsets and calibrate our MPU6050
-		mpu.CalibrateGyro(6);
-		Serial.println("These are the Active offsets: ");
-		mpu.PrintActiveOffsets();
-		Serial.println(F("Enabling DMP..."));   //Turning ON DMP
-		mpu.setDMPEnabled(true);
+	// Set device as a Wi-Fi Station
+	WiFi.mode(WIFI_STA);
 
-		MPUIntStatus = mpu.getIntStatus();
+	// Init ESP-NOW
+	if (esp_now_init() != ESP_OK) {
+		Serial.println("Error initializing ESP-NOW");
+		return;
+	}
 
-		/* Set the DMP Ready flag so the main loop() function knows it is okay to use it */
-		Serial.println(F("DMP ready! Waiting for first interrupt..."));
-		DMPReady = true;
-		packetSize = mpu.dmpGetFIFOPacketSize(); //Get expected DMP packet size for later comparison
-	}   
+	// Once ESPNow is successfully Init, we will register for Send CB to
+	// get the status of Transmitted packet
+	esp_now_register_send_cb(OnDataSent);
+
+	// Register peer
+	memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+	peerInfo.channel = 0;  
+	peerInfo.encrypt = false;
+
+	// Add peer        
+	if (esp_now_add_peer(&peerInfo) != ESP_OK){
+		Serial.println("Failed to add peer");
+		return;
+	}
 }
 
 void printQuaternion() {
-	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
-		mpu.dmpGetQuaternion(&q, FIFOBuffer);
-		Serial.println("Quat:");
-		Serial.println(q.w);
-		Serial.println(q.x);
-		Serial.println(q.y);
-		Serial.println(q.z);
-	}
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
+
+	Serial.print("Rotation X: ");
+	Serial.print(g.gyro.x);
+	Serial.print(", Y: ");
+	Serial.print(g.gyro.y);
+	Serial.print(", Z: ");
+	Serial.print(g.gyro.z);
+	Serial.println(" rad/s");
 }
 
-void getQuaternion(int &qw_, int &qx_, int &qy_, int &qz_) {
-	mpu.dmpGetQuaternion(&q, FIFOBuffer);
-	qw_ = q.w;
-	qx_ = q.x;
-	qy_ = q.y;
-	qz_ = q.z;
+void getQuaternion(float &qw_, float &qx_, float &qy_, float &qz_) {
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
+
+	// qw_ = g.gyro.w;
+	qx_ = g.gyro.x;
+	qy_ = g.gyro.y;
+	qz_ = g.gyro.z;
 }
 
 void printAccel() {
-	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
-		mpu.dmpGetAccel(&aa, FIFOBuffer);
-		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
-		Serial.print("aworld\t");
-		// Serial.println(aaWorld.x * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-		// Serial.println(aaWorld.y * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-		// Serial.println(aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-		Serial.println(aaWorld.x * mpu.get_acce_resolution());
-		Serial.println(aaWorld.y * mpu.get_acce_resolution());
-		Serial.println(aaWorld.z * mpu.get_acce_resolution());
-	}
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
+
+	Serial.print("Acceleration X: ");
+	Serial.print(a.acceleration.x);
+	Serial.print(", Y: ");
+	Serial.print(a.acceleration.y);
+	Serial.print(", Z: ");
+	Serial.print(a.acceleration.z);
+	Serial.println(" m/s^2");
 }
 
 void getAccel(float &ax_, float &ay_, float &az_) {
 	
-	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
-		mpu.dmpGetQuaternion(&q, FIFOBuffer);
-		mpu.dmpGetAccel(&aa, FIFOBuffer);
-		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
-		mpu.dmpGetAccel(&aa, FIFOBuffer);
-		mpu.dmpGetAccel(&aa, FIFOBuffer);
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
 
-		// mpu.dmpGetQuantizedAccel(&qa, FIFOBuffer);
-
-		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
-		
-		ax_ = aaWorld.x * mpu.get_acce_resolution();
-		ay_ = aaWorld.y * mpu.get_acce_resolution();
-		az_ = aaWorld.z * mpu.get_acce_resolution();
-	}
+	ax_ = a.acceleration.x;
+	ay_ = a.acceleration.y;
+	az_ = a.acceleration.z;
 }
 
 void FW(int pin) {
