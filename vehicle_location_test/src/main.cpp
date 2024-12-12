@@ -11,6 +11,7 @@
 
 MPU6050 mpu;
 
+
         
 #define EARTH_GRAVITY_MS2 9.80665  //m/s2
 #define DEG_TO_RAD        0.017453292519943295769236907684886
@@ -31,8 +32,11 @@ VectorFloat gravity;    // [x, y, z]            Gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];
 
-int Power_pin = 8;
-
+int Power_pin = 3;
+float xa, ya, za;
+float x = 0, y = 0, z = 0; 
+float xq, yq, zq, wq;
+float qx = 0, qy = 0, qz = 0, qw = 0;
 // MPU mpu6050;
 
 void FW(int pin);
@@ -46,9 +50,9 @@ void BLeft(int pin);
 
 void mpuConnect();
 void printQuaternion();
-void getQuaternion(int &qw_, int &qx_, int &qy_, int &qz_);
+void getQuaternion(float &qw_, float &qx_, float &qy_, float &qz_);
 void printAccel();
-void getAccel(int &ax_, int &ay_, int &az_);
+void getAccel(float &ax_, float &ay_, float &az_);
 
 void setup() {
 	Serial.begin(115200);
@@ -65,12 +69,37 @@ void setup() {
 	}
 
 	mpuConnect();
-
 }
 
 void loop() {
-	printQuaternion();
-	printAccel();
+	// printQuaternion();
+	// printAccel();
+	getQuaternion(wq, xq, yq, zq);
+	getAccel(xa, ya, za);
+
+	x += xa;
+	y += ya;
+
+	qw += wq;
+	qx += xq;
+	qy += yq;
+	qz += zq;
+
+	Serial.println(y);
+
+	if (x >= 120) {
+		for (int i = 0; i < 3; i++) {
+			FLeft(Power_pin);
+		}
+		x = 0;
+		y = 0;
+	} else {
+		for (int i = 0; i < 1; i++) {
+			FW(Power_pin);
+		}
+	}
+
+	
 	
 	// for(int i = 0; i < 4; i++) {
 	// 	digitalWrite(Power_pin, LOW);
@@ -87,7 +116,7 @@ void loop() {
 	// 	delayMicroseconds(500);
 	// }
 
-	delay(2000);
+	// delay(2000);
 }
 
 void mpuConnect() {
@@ -150,28 +179,36 @@ void getQuaternion(int &qw_, int &qx_, int &qy_, int &qz_) {
 }
 
 void printAccel() {
-	mpu.dmpGetAccel(&aa, FIFOBuffer);
-	mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
-	Serial.print("aworld\t");
-	// Serial.println(aaWorld.x * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-	// Serial.println(aaWorld.y * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-	// Serial.println(aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
-	Serial.println(aaWorld.x * mpu.get_acce_resolution());
-	Serial.println(aaWorld.y * mpu.get_acce_resolution());
-	Serial.println(aaWorld.z * mpu.get_acce_resolution());
+	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
+		mpu.dmpGetAccel(&aa, FIFOBuffer);
+		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
+		Serial.print("aworld\t");
+		// Serial.println(aaWorld.x * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
+		// Serial.println(aaWorld.y * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
+		// Serial.println(aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2);
+		Serial.println(aaWorld.x * mpu.get_acce_resolution());
+		Serial.println(aaWorld.y * mpu.get_acce_resolution());
+		Serial.println(aaWorld.z * mpu.get_acce_resolution());
+	}
 }
 
-void getAccel(int &ax_, int &ay_, int &az_) {
-	// mpu.dmpGetQuaternion(&q, FIFOBuffer);
-	mpu.dmpGetAccel(&aa, FIFOBuffer);
-
-	// mpu.dmpGetQuantizedAccel(&qa, FIFOBuffer);
-
-	mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
+void getAccel(float &ax_, float &ay_, float &az_) {
 	
-	ax_ = aaWorld.x * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2;
-	ay_ = aaWorld.y * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2;
-	az_ = aaWorld.z * mpu.get_acce_resolution() * EARTH_GRAVITY_MS2;
+	if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
+		mpu.dmpGetQuaternion(&q, FIFOBuffer);
+		mpu.dmpGetAccel(&aa, FIFOBuffer);
+		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
+		mpu.dmpGetAccel(&aa, FIFOBuffer);
+		mpu.dmpGetAccel(&aa, FIFOBuffer);
+
+		// mpu.dmpGetQuantizedAccel(&qa, FIFOBuffer);
+
+		mpu.dmpConvertToWorldFrame(&aaWorld, &aa, &q);
+		
+		ax_ = aaWorld.x * mpu.get_acce_resolution();
+		ay_ = aaWorld.y * mpu.get_acce_resolution();
+		az_ = aaWorld.z * mpu.get_acce_resolution();
+	}
 }
 
 void FW(int pin) {
